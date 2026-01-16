@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getVMConfigById, runCommand } from '@/lib/azure'
+import { getVMConfigById, runSSHCommand } from '@/lib/ssh'
 
-// POST /api/command - Run a command on a VM
+// POST /api/command - Run a command on a VM via SSH
 export async function POST(request: NextRequest) {
   try {
     const { vmId, command } = await request.json()
@@ -40,13 +40,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const output = await runCommand(config, command)
+    const { stdout, stderr } = await runSSHCommand(config, command)
+    const output = stdout || stderr || 'Command executed (no output)'
 
     return NextResponse.json({ output })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Command execution error:', error)
     return NextResponse.json(
-      { error: 'Failed to execute command' },
+      { error: error.message || 'Failed to execute command' },
       { status: 500 }
     )
   }

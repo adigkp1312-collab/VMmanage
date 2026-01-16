@@ -1,185 +1,124 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import VMCard from '@/components/VMCard'
-import InferencePanel from '@/components/InferencePanel'
-import CommandRunner from '@/components/CommandRunner'
+import { useState } from 'react'
+import dynamic from 'next/dynamic'
 
-interface VMStatus {
+const Terminal = dynamic(() => import('@/components/Terminal'), {
+  ssr: false,
+  loading: () => <div className="flex-1 bg-gray-900" />,
+})
+
+interface TerminalTab {
   id: string
   name: string
-  label: string
-  resourceGroup: string
-  subscriptionId: string
-  powerState: string
-  provisioningState: string
-  vmSize?: string
-  location?: string
 }
 
-type TabType = 'vms' | 'inference' | 'commands'
+const SSH_COMMANDS = [
+  {
+    name: 'adiyogi',
+    command: 'ssh -i /Users/guptaaditya/Desktop/adiyogi_key.pem azureuser@20.151.49.225',
+  },
+  {
+    name: 'azureexp',
+    command: 'ssh -i /Users/guptaaditya/Desktop/azureexp.pem azureuser@20.64.254.183',
+  },
+]
 
 export default function Dashboard() {
-  const [vms, setVMs] = useState<VMStatus[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<TabType>('vms')
+  const [terminals, setTerminals] = useState<TerminalTab[]>([])
+  const [activeTab, setActiveTab] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
 
-  const fetchVMs = useCallback(async () => {
-    try {
-      const response = await fetch('/api/vms')
-      if (!response.ok) {
-        throw new Error('Failed to fetch VMs')
-      }
-      const data = await response.json()
-      setVMs(data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchVMs()
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchVMs, 30000)
-    return () => clearInterval(interval)
-  }, [fetchVMs])
-
-  const handleLogout = async () => {
-    await fetch('/api/auth', { method: 'DELETE' })
-    window.location.href = '/login'
+  const addTerminal = () => {
+    const id = `term-${Date.now()}`
+    const newTab = { id, name: `Terminal ${terminals.length + 1}` }
+    setTerminals([...terminals, newTab])
+    setActiveTab(id)
   }
 
-  const tabs: { id: TabType; label: string }[] = [
-    { id: 'vms', label: 'VM Management' },
-    { id: 'inference', label: 'AI Inference' },
-    { id: 'commands', label: 'Run Commands' },
-  ]
+  const closeTerminal = (id: string) => {
+    const newTerminals = terminals.filter((t) => t.id !== id)
+    setTerminals(newTerminals)
+    if (activeTab === id) {
+      setActiveTab(newTerminals.length > 0 ? newTerminals[newTerminals.length - 1].id : null)
+    }
+  }
+
+  const copyCommand = (command: string, name: string) => {
+    navigator.clipboard.writeText(command)
+    setCopied(name)
+    setTimeout(() => setCopied(null), 2000)
+  }
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <h1 className="text-xl font-bold text-white">
-              Azure VM Dashboard
-            </h1>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={fetchVMs}
-                className="text-sm text-gray-400 hover:text-white"
-              >
-                Refresh
-              </button>
-              <button
-                onClick={handleLogout}
-                className="text-sm text-gray-400 hover:text-white"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gray-900 flex">
+      <aside className="w-48 bg-gray-800 border-r border-gray-700 p-2 flex flex-col gap-2">
+        <button
+          onClick={addTerminal}
+          className="w-full py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded transition-colors"
+        >
+          + New
+        </button>
+        {SSH_COMMANDS.map((vm) => (
+          <button
+            key={vm.name}
+            onClick={() => copyCommand(vm.command, vm.name)}
+            className="w-full py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+          >
+            {copied === vm.name ? 'Copied!' : vm.name}
+          </button>
+        ))}
+      </aside>
 
-      {/* Tabs */}
-      <div className="bg-gray-800 border-b border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-4" aria-label="Tabs">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-3 py-4 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
-
-        {/* VM Management Tab */}
-        {activeTab === 'vms' && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-white">
-                Virtual Machines
-              </h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    for (const vm of vms) {
-                      if (vm.powerState !== 'running') {
-                        await fetch(`/api/vms/${vm.id}/start`, { method: 'POST' })
-                      }
-                    }
-                    setTimeout(fetchVMs, 3000)
-                  }}
-                  className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded transition-colors"
-                >
-                  Start All
-                </button>
-                <button
-                  onClick={async () => {
-                    for (const vm of vms) {
-                      if (vm.powerState === 'running') {
-                        await fetch(`/api/vms/${vm.id}/stop`, { method: 'POST' })
-                      }
-                    }
-                    setTimeout(fetchVMs, 3000)
-                  }}
-                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-                >
-                  Stop All
-                </button>
-              </div>
-            </div>
-
-            {loading ? (
-              <div className="text-center text-gray-400 py-12">
-                Loading VMs...
-              </div>
-            ) : vms.length === 0 ? (
-              <div className="text-center text-gray-400 py-12">
-                No VMs configured. Check your environment variables.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {vms.map((vm) => (
-                  <VMCard key={vm.id} vm={vm} onRefresh={fetchVMs} />
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {terminals.length > 0 ? (
+            <>
+              <div className="flex bg-gray-800 border-b border-gray-700">
+                {terminals.map((tab) => (
+                  <div
+                    key={tab.id}
+                    className={`flex items-center px-4 py-2 cursor-pointer border-r border-gray-700 ${
+                      activeTab === tab.id
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                    }`}
+                    onClick={() => setActiveTab(tab.id)}
+                  >
+                    <span className="text-sm">{tab.name}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        closeTerminal(tab.id)
+                      }}
+                      className="ml-2 text-gray-500 hover:text-white"
+                    >
+                      ×
+                    </button>
+                  </div>
                 ))}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* AI Inference Tab */}
-        {activeTab === 'inference' && <InferencePanel />}
-
-        {/* Commands Tab */}
-        {activeTab === 'commands' && (
-          <CommandRunner
-            vms={vms.map((vm) => ({ id: vm.id, label: vm.label }))}
-          />
-        )}
-      </main>
+              <div className="flex-1 relative">
+                {terminals.map((tab) => (
+                  <div
+                    key={tab.id}
+                    className={`absolute inset-0 ${activeTab === tab.id ? 'block' : 'hidden'}`}
+                  >
+                    <Terminal id={tab.id} />
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <button
+                onClick={addTerminal}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+              >
+                Open Terminal
+              </button>
+            </div>
+          )}
+        </main>
     </div>
   )
 }

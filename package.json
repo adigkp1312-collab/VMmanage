@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "Multi-VM Control Dashboard for Azure",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
+    "terminal": "node terminal-server.js",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production next start -p 3001",
     "lint": "next lint"
   },
   "dependencies": {
@@ -13,9 +14,15 @@
     "@azure/arm-compute": "^23.2.0",
     "@azure/identity": "^4.13.0",
     "@google/generative-ai": "^0.24.1",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "next": "^14.2.35",
+    "node-pty": "^1.1.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "ws": "^8.19.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.9",
